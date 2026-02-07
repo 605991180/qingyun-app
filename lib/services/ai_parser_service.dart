@@ -8,28 +8,54 @@ import '../services/heat_calculator.dart';
 /// 模拟AI功能，通过关键词匹配解析日记内容
 class AIParserService {
   
+  /// 移除书名号、引号等符号中的内容，避免误识别
+  static String _removeQuotedContent(String content) {
+    // 移除书名号内容
+    String result = content.replaceAll(RegExp(r'《[^》]*》'), ' ');
+    // 移除双书名号内容
+    result = result.replaceAll(RegExp(r'〈[^〉]*〉'), ' ');
+    // 保留普通引号内容（可能是对话，包含人名）
+    return result;
+  }
+  
+  /// 检查名字是否在有效位置（不在书名号等符号内）
+  static bool _isValidNameMatch(String content, String name) {
+    // 检查是否在书名号内
+    final bookPattern = RegExp('《[^》]*$name[^》]*》');
+    if (bookPattern.hasMatch(content)) {
+      return false;
+    }
+    // 检查是否在双书名号内
+    final doubleBookPattern = RegExp('〈[^〉]*$name[^〉]*〉');
+    if (doubleBookPattern.hasMatch(content)) {
+      return false;
+    }
+    return content.contains(name);
+  }
+  
   /// 解析日记并返回分析结果
   static Future<DiaryAnalysisResult> analyzeDiary(String content, List<Contact> contacts) async {
     final result = DiaryAnalysisResult();
     
-    // 1. 识别提到的联系人
+    // 1. 识别提到的联系人（排除书名号中的内容）
     for (var contact in contacts) {
-      if (content.contains(contact.name)) {
+      if (_isValidNameMatch(content, contact.name)) {
         final interaction = _analyzeInteraction(content, contact.name);
         result.interactions.add(interaction);
       }
     }
     
     // 2. 识别新联系人（格式：认识了XXX、结识了XXX）
+    final cleanContent = _removeQuotedContent(content);
     final newContactPatterns = [
-      RegExp(r'认识了[「」""'']*([^\s,，。！!?？、]{2,4})'),
-      RegExp(r'结识了[「」""'']*([^\s,，。！!?？、]{2,4})'),
-      RegExp(r'新认识[「」""'']*([^\s,，。！!?？、]{2,4})'),
-      RegExp(r'遇到了[「」""'']*([^\s,，。！!?？、]{2,4})'),
+      RegExp(r'认识了[「」""'']*([^\s,，。！!?？、《》〈〉]{2,4})'),
+      RegExp(r'结识了[「」""'']*([^\s,，。！!?？、《》〈〉]{2,4})'),
+      RegExp(r'新认识[「」""'']*([^\s,，。！!?？、《》〈〉]{2,4})'),
+      RegExp(r'遇到了[「」""'']*([^\s,，。！!?？、《》〈〉]{2,4})'),
     ];
     
     for (var pattern in newContactPatterns) {
-      final matches = pattern.allMatches(content);
+      final matches = pattern.allMatches(cleanContent);
       for (var match in matches) {
         final name = match.group(1);
         if (name != null && !contacts.any((c) => c.name == name)) {
@@ -56,8 +82,26 @@ class AIParserService {
   static InteractionAnalysis _analyzeInteraction(String content, String contactName) {
     final analysis = InteractionAnalysis(contactName: contactName);
     
-    // 识别互动类型和热度增益
-    if (_containsAny(content, ['请客', '请吃', '送礼', '送了', '礼物'])) {
+    // 先检查负面互动（优先级更高，避免误判）
+    if (_containsAny(content, ['吵架', '争吵', '吵了', '大吵', '争执', '冲突', '翻脸'])) {
+      analysis.type = InteractionType.conflict;
+      analysis.heatGain = -5.0;
+      analysis.description = '发生争吵';
+    } else if (_containsAny(content, ['冷战', '不理', '没说话', '不联系', '互不理睬'])) {
+      analysis.type = InteractionType.coldWar;
+      analysis.heatGain = -3.0;
+      analysis.description = '冷战中';
+    } else if (_containsAny(content, ['背叛', '出卖', '欺骗', '骗了', '背后', '阴了'])) {
+      analysis.type = InteractionType.betrayal;
+      analysis.heatGain = -15.0;
+      analysis.description = '遭遇背叛';
+    } else if (_containsAny(content, ['疏远', '淡了', '不来往', '断联', '失联', '很久没'])) {
+      analysis.type = InteractionType.neglect;
+      analysis.heatGain = -2.0;
+      analysis.description = '关系疏远';
+    }
+    // 正面互动识别
+    else if (_containsAny(content, ['请客', '请吃', '送礼', '送了', '礼物'])) {
       analysis.type = InteractionType.gift;
       analysis.heatGain = 10.0;
       analysis.description = '送礼/请客';
@@ -157,30 +201,87 @@ class AIParserService {
     return resources;
   }
   
-  /// 分析文本情绪
+  /// 分析文本情绪（优化版）
   static String? _analyzeMood(String content) {
-    if (_containsAny(content, ['开心', '高兴', '快乐', '棒', '赞', '太好了', '哈哈'])) {
-      return MoodType.happy;
+    // 情绪关键词映射表，按优先级和权重组织
+    final moodKeywords = {
+      MoodType.happy: {
+        'high': ['太开心了', '超级高兴', '特别快乐', '非常棒', '超赞', '太好了', '完美'],
+        'medium': ['开心', '高兴', '快乐', '棒', '赞', '好', '不错', '满意', '惊喜'],
+        'low': ['哈哈', '嘻嘻', '呵呵', '还行', '可以'],
+      },
+      MoodType.sad: {
+        'high': ['崩溃', '绝望', '心碎', '痛苦', '太难过了', '哭死', '受不了'],
+        'medium': ['难过', '伤心', '悲伤', '郁闷', '失落', '委屈', '心酸'],
+        'low': ['唉', '叹气', '遗憾', '可惜', '不开心'],
+      },
+      MoodType.angry: {
+        'high': ['气死了', '愤怒', '暴怒', '火大', '受够了', '忍无可忍'],
+        'medium': ['生气', '烦', '讨厌', '恼火', '不爽', '无语'],
+        'low': ['烦躁', '不满', '郁闷'],
+      },
+      MoodType.tired: {
+        'high': ['累死了', '精疲力竭', '撑不住', '要倒了', '快不行了'],
+        'medium': ['累', '疲惫', '困', '辛苦', '加班', '熬夜', '没精神'],
+        'low': ['有点累', '还好', '一般'],
+      },
+      MoodType.excited: {
+        'high': ['太激动了', '兴奋死了', '超期待', '燃爆了', '太棒了'],
+        'medium': ['激动', '兴奋', '期待', '惊喜', '振奋', '热血'],
+        'low': ['有点期待', '还蛮期待'],
+      },
+      MoodType.anxious: {
+        'high': ['焦虑死了', '快疯了', '崩溃边缘', '压力山大', '喘不过气'],
+        'medium': ['焦虑', '担心', '紧张', '压力', '不安', '忐忑', '心慌'],
+        'low': ['有点紧张', '稍微担心'],
+      },
+      MoodType.grateful: {
+        'high': ['太感谢了', '感激不尽', '永远感恩', '万分感谢'],
+        'medium': ['感谢', '感恩', '谢谢', '感激', '幸运', '庆幸'],
+        'low': ['多亏', '托福', '还好有'],
+      },
+      MoodType.calm: {
+        'high': ['非常平静', '内心安宁', '很满足'],
+        'medium': ['平静', '安宁', '放松', '舒适', '惬意', '自在'],
+        'low': ['还好', '一般', '正常', '普通'],
+      },
+    };
+    
+    // 计算每种情绪的得分
+    final scores = <String, double>{};
+    
+    for (var mood in moodKeywords.keys) {
+      double score = 0;
+      final keywords = moodKeywords[mood]!;
+      
+      // 高权重关键词 (+3分)
+      for (var keyword in keywords['high']!) {
+        if (content.contains(keyword)) score += 3;
+      }
+      // 中权重关键词 (+2分)
+      for (var keyword in keywords['medium']!) {
+        if (content.contains(keyword)) score += 2;
+      }
+      // 低权重关键词 (+1分)
+      for (var keyword in keywords['low']!) {
+        if (content.contains(keyword)) score += 1;
+      }
+      
+      if (score > 0) {
+        scores[mood] = score;
+      }
     }
-    if (_containsAny(content, ['累', '疲惫', '困', '辛苦', '加班'])) {
-      return MoodType.tired;
+    
+    // 如果没有检测到任何情绪，返回平静
+    if (scores.isEmpty) {
+      return MoodType.calm;
     }
-    if (_containsAny(content, ['难过', '伤心', '悲伤', '郁闷', '失落'])) {
-      return MoodType.sad;
-    }
-    if (_containsAny(content, ['生气', '愤怒', '烦', '讨厌', '气死'])) {
-      return MoodType.angry;
-    }
-    if (_containsAny(content, ['激动', '兴奋', '期待', '惊喜'])) {
-      return MoodType.excited;
-    }
-    if (_containsAny(content, ['焦虑', '担心', '紧张', '压力'])) {
-      return MoodType.anxious;
-    }
-    if (_containsAny(content, ['感谢', '感恩', '谢谢', '感激'])) {
-      return MoodType.grateful;
-    }
-    return MoodType.calm;
+    
+    // 返回得分最高的情绪
+    final sortedMoods = scores.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    
+    return sortedMoods.first.key;
   }
   
   /// 应用分析结果到数据
@@ -197,8 +298,11 @@ class AIParserService {
       await StorageService.addContact(newContact);
     }
     
-    // 2. 更新互动记录和热度
-    for (var interaction in result.interactions) {
+    // 2. 合并同一联系人的多次互动
+    final mergedInteractions = _mergeInteractionsByContact(result.interactions);
+    
+    // 3. 更新互动记录和热度
+    for (var interaction in mergedInteractions) {
       final contact = contacts.firstWhere(
         (c) => c.name == interaction.contactName,
         orElse: () => Contact(id: '', name: ''),
@@ -245,10 +349,90 @@ class AIParserService {
       }
     }
     
-    // 3. 保存资源信息
+    // 4. 保存资源信息
     for (var resource in result.resources) {
       await StorageService.addContactResource(resource);
     }
+  }
+  
+  /// 合并同一联系人的多次互动
+  static List<InteractionAnalysis> _mergeInteractionsByContact(List<InteractionAnalysis> interactions) {
+    if (interactions.isEmpty) return [];
+    
+    // 按联系人名字分组
+    final Map<String, List<InteractionAnalysis>> grouped = {};
+    for (var interaction in interactions) {
+      grouped.putIfAbsent(interaction.contactName, () => []);
+      grouped[interaction.contactName]!.add(interaction);
+    }
+    
+    // 合并每个联系人的互动
+    final merged = <InteractionAnalysis>[];
+    for (var entry in grouped.entries) {
+      final contactInteractions = entry.value;
+      
+      if (contactInteractions.length == 1) {
+        merged.add(contactInteractions.first);
+      } else {
+        // 需要合并多次互动
+        merged.add(_mergeSingleContactInteractions(entry.key, contactInteractions));
+      }
+    }
+    
+    return merged;
+  }
+  
+  /// 合并单个联系人的多次互动
+  static InteractionAnalysis _mergeSingleContactInteractions(
+    String contactName, 
+    List<InteractionAnalysis> interactions
+  ) {
+    final result = InteractionAnalysis(contactName: contactName);
+    
+    // 收集所有描述
+    final descriptions = <String>[];
+    double totalHeatGain = 0;
+    double totalResourceCost = 0;
+    ResourceType? resourceType;
+    
+    // 定义互动类型优先级（绝对值越大越优先）
+    InteractionType bestType = InteractionType.normal;
+    double bestTypeWeight = 0;
+    
+    for (var interaction in interactions) {
+      // 合并描述（去重）
+      if (interaction.description.isNotEmpty && 
+          !descriptions.contains(interaction.description)) {
+        descriptions.add(interaction.description);
+      }
+      
+      // 累加热度增益
+      totalHeatGain += interaction.heatGain;
+      
+      // 累加资源消耗
+      if (interaction.resourceCost > 0) {
+        totalResourceCost += interaction.resourceCost;
+        resourceType ??= interaction.resourceType;
+      }
+      
+      // 选择影响最大的互动类型（按热度绝对值）
+      final weight = interaction.heatGain.abs();
+      if (weight > bestTypeWeight) {
+        bestTypeWeight = weight;
+        bestType = interaction.type;
+      }
+    }
+    
+    // 设置合并后的属性
+    result.type = bestType;
+    result.heatGain = totalHeatGain;
+    result.description = descriptions.length > 1 
+        ? '${descriptions.join("、")}（共${interactions.length}次互动）'
+        : descriptions.isNotEmpty ? descriptions.first : '多次互动';
+    result.resourceCost = totalResourceCost;
+    result.resourceType = resourceType;
+    
+    return result;
   }
   
   static bool _containsAny(String text, List<String> keywords) {

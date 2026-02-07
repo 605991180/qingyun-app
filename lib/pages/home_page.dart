@@ -57,23 +57,26 @@ class _HomePageState extends State<HomePage> {
         foregroundColor: Colors.white,
         actions: [
           if (warningCount > 0)
-            Container(
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.orange.withAlpha(50),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.warning_amber, color: Colors.orange, size: 16),
-                  const SizedBox(width: 4),
-                  Text(
-                    '$warningCount',
-                    style: const TextStyle(color: Colors.orange, fontSize: 14),
-                  ),
-                ],
+            Semantics(
+              label: '$warningCount个联系人需要关注',
+              child: Container(
+                margin: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withAlpha(50),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.warning_amber, color: Colors.orange, size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$warningCount',
+                      style: const TextStyle(color: Colors.orange, fontSize: 14),
+                    ),
+                  ],
+                ),
               ),
             ),
         ],
@@ -242,28 +245,32 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildStatItem(String label, String value, Color color, IconData icon, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              color: color,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+    return Semantics(
+      button: true,
+      label: '$label：$value，点击查看详情',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: TextStyle(
+                color: color,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white.withAlpha(150),
-              fontSize: 12,
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white.withAlpha(150),
+                fontSize: 12,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -451,9 +458,30 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 ),
-                title: Text(
-                  contact.name,
-                  style: const TextStyle(color: Colors.white),
+                title: Row(
+                  children: [
+                    Text(
+                      contact.name,
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    if (contact.relationType != null) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Color(contact.relationType!.color).withAlpha(30),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          contact.relationType!.label,
+                          style: TextStyle(
+                            color: Color(contact.relationType!.color),
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 subtitle: Text(
                   '$daysSince天前 · ${HeatCalculator.getHeatLevel(contact.heat)}',

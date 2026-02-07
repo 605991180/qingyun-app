@@ -64,10 +64,13 @@ class _VoiceButtonState extends State<VoiceButton>
         final scale = widget.isListening ? _scaleAnimation.value : 1.0;
         final glowRadius = widget.isListening ? _glowAnimation.value : 12.0;
         
-        return GestureDetector(
-          onLongPressStart: (_) => widget.onLongPressStart?.call(),
-          onLongPressEnd: (_) => widget.onLongPressEnd?.call(),
-          child: Container(
+        return Semantics(
+          button: true,
+          label: widget.isListening ? '正在录音，点击停止' : '添加互动记录，长按开始语音输入',
+          child: GestureDetector(
+            onLongPressStart: (_) => widget.onLongPressStart?.call(),
+            onLongPressEnd: (_) => widget.onLongPressEnd?.call(),
+            child: Container(
             width: 72 * scale,
             height: 72 * scale,
             decoration: BoxDecoration(
@@ -100,18 +103,22 @@ class _VoiceButtonState extends State<VoiceButton>
             ),
             child: Material(
               color: Colors.transparent,
-              child: InkWell(
-                onTap: widget.onPressed,
-                customBorder: const CircleBorder(),
-                child: Icon(
-                  widget.isListening ? Icons.mic : Icons.add,
-                  color: Colors.white,
-                  size: 32,
+              child: Tooltip(
+                message: widget.isListening ? '停止录音' : '添加互动',
+                child: InkWell(
+                  onTap: widget.onPressed,
+                  customBorder: const CircleBorder(),
+                  child: Icon(
+                    widget.isListening ? Icons.mic : Icons.add,
+                    color: Colors.white,
+                    size: 32,
+                  ),
                 ),
               ),
             ),
           ),
-        );
+        ),
+      );
       },
     );
   }

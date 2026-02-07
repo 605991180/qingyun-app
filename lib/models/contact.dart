@@ -8,6 +8,7 @@ class Contact {
   DateTime createdAt;
   List<Interaction> interactions;
   List<Resource> resources; // 资源消耗记录
+  RelationType? relationType; // 关系类型标签
 
   Contact({
     required this.id,
@@ -18,6 +19,7 @@ class Contact {
     DateTime? createdAt,
     List<Interaction>? interactions,
     List<Resource>? resources,
+    this.relationType,
   })  : lastInteraction = lastInteraction ?? DateTime.now(),
         createdAt = createdAt ?? DateTime.now(),
         interactions = interactions ?? [],
@@ -37,6 +39,7 @@ class Contact {
         'createdAt': createdAt.toIso8601String(),
         'interactions': interactions.map((i) => i.toJson()).toList(),
         'resources': resources.map((r) => r.toJson()).toList(),
+        'relationType': relationType?.index,
       };
 
   factory Contact.fromJson(Map<String, dynamic> json) => Contact(
@@ -56,11 +59,77 @@ class Contact {
                 ?.map((r) => Resource.fromJson(r))
                 .toList() ??
             [],
+        relationType: json['relationType'] != null 
+            ? RelationType.values[json['relationType']] 
+            : null,
       );
+}
+
+/// 关系类型枚举
+enum RelationType {
+  family,      // 家人
+  friend,      // 朋友
+  colleague,   // 同事
+  classmate,   // 同学
+  business,    // 生意伙伴
+  neighbor,    // 邻居
+  mentor,      // 导师/前辈
+  lover,       // 恋人
+  acquaintance,// 熟人
+  other,       // 其他
+}
+
+/// 关系类型扩展
+extension RelationTypeExtension on RelationType {
+  String get label {
+    switch (this) {
+      case RelationType.family: return '家人';
+      case RelationType.friend: return '朋友';
+      case RelationType.colleague: return '同事';
+      case RelationType.classmate: return '同学';
+      case RelationType.business: return '生意伙伴';
+      case RelationType.neighbor: return '邻居';
+      case RelationType.mentor: return '导师';
+      case RelationType.lover: return '恋人';
+      case RelationType.acquaintance: return '熟人';
+      case RelationType.other: return '其他';
+    }
+  }
+
+  String get emoji {
+    switch (this) {
+      case RelationType.family: return '👨‍👩‍👧';
+      case RelationType.friend: return '🤝';
+      case RelationType.colleague: return '💼';
+      case RelationType.classmate: return '🎓';
+      case RelationType.business: return '🤵';
+      case RelationType.neighbor: return '🏠';
+      case RelationType.mentor: return '👨‍🏫';
+      case RelationType.lover: return '❤️';
+      case RelationType.acquaintance: return '👋';
+      case RelationType.other: return '📌';
+    }
+  }
+
+  int get color {
+    switch (this) {
+      case RelationType.family: return 0xFFE91E63;
+      case RelationType.friend: return 0xFF4CAF50;
+      case RelationType.colleague: return 0xFF2196F3;
+      case RelationType.classmate: return 0xFF9C27B0;
+      case RelationType.business: return 0xFFFF9800;
+      case RelationType.neighbor: return 0xFF795548;
+      case RelationType.mentor: return 0xFF607D8B;
+      case RelationType.lover: return 0xFFF44336;
+      case RelationType.acquaintance: return 0xFF9E9E9E;
+      case RelationType.other: return 0xFF455A64;
+    }
+  }
 }
 
 /// 互动类型枚举
 enum InteractionType {
+  // 正面互动
   normal, // 普通互动
   paidTransaction, // 付费交易（限+5%）
   theyInitiated, // 对方主动联系（+5%）
@@ -68,6 +137,11 @@ enum InteractionType {
   meetup, // 线下见面（+15%）
   help, // 帮助对方（+8%）
   gift, // 送礼物（+10%）
+  // 负面互动
+  conflict, // 争吵/冲突（-5%）
+  coldWar, // 冷战（-3%）
+  betrayal, // 背叛（-15%）
+  neglect, // 忽视/疏远（-2%）
 }
 
 /// 互动记录
@@ -102,6 +176,15 @@ class Interaction {
         return 10.0;
       case InteractionType.normal:
         return 3.0;
+      // 负面互动
+      case InteractionType.conflict:
+        return -5.0; // 争吵冲突-5%
+      case InteractionType.coldWar:
+        return -3.0; // 冷战-3%
+      case InteractionType.betrayal:
+        return -15.0; // 背叛-15%
+      case InteractionType.neglect:
+        return -2.0; // 忽视疏远-2%
     }
   }
 
@@ -121,6 +204,15 @@ class Interaction {
         return '送礼物';
       case InteractionType.normal:
         return '日常互动';
+      // 负面互动
+      case InteractionType.conflict:
+        return '争吵冲突';
+      case InteractionType.coldWar:
+        return '冷战';
+      case InteractionType.betrayal:
+        return '背叛';
+      case InteractionType.neglect:
+        return '疏远';
     }
   }
 

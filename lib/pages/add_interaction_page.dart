@@ -269,36 +269,49 @@ class _AddInteractionPageState extends State<AddInteractionPage> {
             children: InteractionType.values.map((type) {
               final isSelected = _selectedType == type;
               final heatGain = _getTypeHeatGain(type);
-              return GestureDetector(
-                onTap: () => setState(() => _selectedType = type),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isSelected ? Colors.amber.withAlpha(40) : Colors.white.withAlpha(5),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isSelected ? Colors.amber : Colors.white.withAlpha(30),
+              final isNegative = heatGain < 0;
+              return Semantics(
+                button: true,
+                selected: isSelected,
+                label: '${_getTypeLabel(type)}，热度${isNegative ? "减少" : "增益"}${heatGain.abs()}%${isSelected ? "，已选中" : ""}',
+                child: GestureDetector(
+                  onTap: () => setState(() => _selectedType = type),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected 
+                          ? (isNegative ? Colors.red.withAlpha(40) : Colors.amber.withAlpha(40)) 
+                          : Colors.white.withAlpha(5),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isSelected 
+                            ? (isNegative ? Colors.red : Colors.amber) 
+                            : Colors.white.withAlpha(30),
+                      ),
                     ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _getTypeLabel(type),
-                        style: TextStyle(
-                          color: isSelected ? Colors.amber : Colors.white.withAlpha(180),
-                          fontSize: 13,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _getTypeLabel(type),
+                          style: TextStyle(
+                            color: isSelected 
+                                ? (isNegative ? Colors.red : Colors.amber) 
+                                : Colors.white.withAlpha(180),
+                            fontSize: 13,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '+$heatGain%',
-                        style: TextStyle(
-                          color: Colors.greenAccent.withAlpha(isSelected ? 255 : 150),
-                          fontSize: 11,
+                        const SizedBox(width: 4),
+                        Text(
+                          '${heatGain >= 0 ? "+" : ""}$heatGain%',
+                          style: TextStyle(
+                            color: (isNegative ? Colors.redAccent : Colors.greenAccent)
+                                .withAlpha(isSelected ? 255 : 150),
+                            fontSize: 11,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -504,6 +517,10 @@ class _AddInteractionPageState extends State<AddInteractionPage> {
       case InteractionType.meetup: return '线下见面';
       case InteractionType.help: return '帮助TA';
       case InteractionType.gift: return '送礼物';
+      case InteractionType.conflict: return '发生冲突';
+      case InteractionType.coldWar: return '冷战';
+      case InteractionType.betrayal: return '背叛';
+      case InteractionType.neglect: return '疏远';
     }
   }
 
@@ -516,6 +533,10 @@ class _AddInteractionPageState extends State<AddInteractionPage> {
       case InteractionType.help: return 8.0;
       case InteractionType.gift: return 10.0;
       case InteractionType.normal: return 3.0;
+      case InteractionType.conflict: return -5.0;
+      case InteractionType.coldWar: return -3.0;
+      case InteractionType.betrayal: return -15.0;
+      case InteractionType.neglect: return -2.0;
     }
   }
 

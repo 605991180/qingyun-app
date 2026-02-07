@@ -80,25 +80,28 @@ class HeatRing extends StatelessWidget {
               ),
               // 中心显示总人数
               Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '${contacts.length}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
+                child: Semantics(
+                  label: '共${contacts.length}位联系人',
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${contacts.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    Text(
-                      '位联系人',
-                      style: TextStyle(
-                        color: Colors.white.withAlpha(150),
-                        fontSize: 12,
+                      Text(
+                        '位联系人',
+                        style: TextStyle(
+                          color: Colors.white.withAlpha(150),
+                          fontSize: 12,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               // 联系人节点
@@ -113,9 +116,12 @@ class HeatRing extends StatelessWidget {
                 return Positioned(
                   left: x,
                   top: y,
-                  child: GestureDetector(
-                    onTap: () => onContactTap?.call(contact),
-                    child: Container(
+                  child: Semantics(
+                    button: true,
+                    label: '${contact.name}，热度${contact.heat.toInt()}%，点击查看详情',
+                    child: GestureDetector(
+                      onTap: () => onContactTap?.call(contact),
+                      child: Container(
                       width: nodeRadius * 2,
                       height: nodeRadius * 2,
                       decoration: BoxDecoration(
@@ -158,6 +164,7 @@ class HeatRing extends StatelessWidget {
                         ],
                       ),
                     ),
+                  ),
                   ),
                 );
               }),

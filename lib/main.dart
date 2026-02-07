@@ -5,6 +5,7 @@ import 'pages/diary_list_page.dart';
 import 'pages/resource_page.dart';
 import 'pages/stats_page.dart';
 import 'pages/profile_page.dart';
+import 'widgets/onboarding.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -73,6 +74,8 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
+  bool _showOnboarding = false;
+  bool _isLoading = true;
   
   final List<Widget> _pages = [
     const HomePage(),
@@ -83,7 +86,40 @@ class _MainScreenState extends State<MainScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _checkOnboarding();
+  }
+
+  Future<void> _checkOnboarding() async {
+    final shouldShow = await OnboardingService.shouldShowOnboarding();
+    setState(() {
+      _showOnboarding = shouldShow;
+      _isLoading = false;
+    });
+  }
+
+  void _onOnboardingComplete() {
+    setState(() {
+      _showOnboarding = false;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Color(0xFF1A1A2E),
+        body: Center(
+          child: CircularProgressIndicator(color: Colors.orange),
+        ),
+      );
+    }
+
+    if (_showOnboarding) {
+      return OnboardingPage(onComplete: _onOnboardingComplete);
+    }
+
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,

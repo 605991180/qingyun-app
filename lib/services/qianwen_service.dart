@@ -153,7 +153,9 @@ class QianwenService {
   /// 构建分析提示词
   static String _buildAnalysisPrompt(String diaryContent, List<String> contactNames) {
     return '''
-分析以下日记内容，提取人际关系信息。
+分析以下日记内容，提取人际关系信息。注意：书名号《》中的内容是书名/作品名，不是人名。
+
+重要：如果同一个联系人在日记中被多次提及，请合并为一条互动记录，描述中包含所有互动内容，热度增益累加。
 
 已有联系人列表：${contactNames.isEmpty ? '无' : contactNames.join('、')}
 
@@ -165,9 +167,9 @@ $diaryContent
   "interactions": [
     {
       "contactName": "联系人姓名",
-      "type": "互动类型(gift/meetup/help/deepTalk/theyInitiated/paidTransaction/normal)",
-      "heatGain": 热度增益数值(3-15),
-      "description": "互动描述"
+      "type": "最主要的互动类型",
+      "heatGain": 累计热度增益数值,
+      "description": "合并后的互动描述"
     }
   ],
   "newContacts": ["新认识的人名"],
@@ -181,23 +183,22 @@ $diaryContent
   "mood": "情绪(happy/sad/angry/tired/excited/anxious/grateful/calm)"
 }
 
-互动类型说明：
-- gift: 送礼、请客
-- meetup: 线下见面、聚餐
-- help: 帮忙、协助
-- deepTalk: 深度交流、谈心
-- theyInitiated: 对方主动联系
-- paidTransaction: 付费交易
-- normal: 日常互动
+互动类型说明（正面）：
+- gift: 送礼、请客 (+10)
+- meetup: 线下见面、聚餐 (+15)
+- help: 帮忙、协助 (+8)
+- deepTalk: 深度交流、谈心 (+10)
+- theyInitiated: 对方主动联系 (+5)
+- paidTransaction: 付费交易 (+5)
+- normal: 日常互动 (+3)
 
-热度增益参考：
-- normal: 3
-- theyInitiated/paidTransaction: 5
-- help: 8
-- gift/deepTalk: 10
-- meetup: 15
+互动类型说明（负面）：
+- conflict: 争吵、冲突、吵架 (-5)
+- coldWar: 冷战、互不理睬 (-3)
+- betrayal: 背叛、欺骗 (-15)
+- neglect: 疏远、失联、很久不联系 (-2)
 
-请只返回JSON，不要添加任何其他文字。
+请只返回JSON，不要添加任何其他文字。每个联系人只返回一条合并后的互动记录。
 ''';
   }
   
@@ -280,6 +281,11 @@ $diaryContent
       case 'deepTalk': return InteractionType.deepTalk;
       case 'theyInitiated': return InteractionType.theyInitiated;
       case 'paidTransaction': return InteractionType.paidTransaction;
+      // 负面互动
+      case 'conflict': return InteractionType.conflict;
+      case 'coldWar': return InteractionType.coldWar;
+      case 'betrayal': return InteractionType.betrayal;
+      case 'neglect': return InteractionType.neglect;
       default: return InteractionType.normal;
     }
   }

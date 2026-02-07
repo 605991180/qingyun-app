@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/contact.dart';
 import '../services/heat_calculator.dart';
 import '../services/storage_service.dart';
+import '../widgets/interaction_timeline.dart';
 import 'add_interaction_page.dart';
 
 class ContactDetailPage extends StatefulWidget {
@@ -20,6 +21,7 @@ class ContactDetailPage extends StatefulWidget {
 
 class _ContactDetailPageState extends State<ContactDetailPage> {
   late Contact _contact;
+  bool _showTimeline = false; // 控制时间线视图切换
 
   @override
   void initState() {
@@ -159,9 +161,77 @@ class _ContactDetailPageState extends State<ContactDetailPage> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      '$daysSinceContact天未联系',
-                      style: TextStyle(color: Colors.white.withAlpha(180), fontSize: 14),
+                    Row(
+                      children: [
+                        Text(
+                          '$daysSinceContact天未联系',
+                          style: TextStyle(color: Colors.white.withAlpha(180), fontSize: 14),
+                        ),
+                        if (_contact.relationType != null) ...[
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: _editRelationType,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Color(_contact.relationType!.color).withAlpha(40),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: Color(_contact.relationType!.color).withAlpha(80),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    _contact.relationType!.emoji,
+                                    style: const TextStyle(fontSize: 10),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _contact.relationType!.label,
+                                    style: TextStyle(
+                                      color: Color(_contact.relationType!.color),
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ] else ...[
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: _editRelationType,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withAlpha(10),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.white.withAlpha(30)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.add,
+                                    size: 12,
+                                    color: Colors.white.withAlpha(100),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '添加标签',
+                                    style: TextStyle(
+                                      color: Colors.white.withAlpha(100),
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ),
@@ -324,6 +394,34 @@ class _ContactDetailPageState extends State<ContactDetailPage> {
                 '共${_contact.interactions.length}次',
                 style: TextStyle(color: Colors.white.withAlpha(100), fontSize: 12),
               ),
+              const SizedBox(width: 8),
+              // 时间线视图切换按钮
+              Semantics(
+                button: true,
+                label: _showTimeline ? '切换到列表视图' : '切换到时间线视图',
+                child: GestureDetector(
+                  onTap: () => setState(() => _showTimeline = !_showTimeline),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: _showTimeline 
+                          ? Colors.cyan.withAlpha(30) 
+                          : Colors.white.withAlpha(10),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _showTimeline 
+                            ? Colors.cyan.withAlpha(100) 
+                            : Colors.white.withAlpha(30),
+                      ),
+                    ),
+                    child: Icon(
+                      _showTimeline ? Icons.view_list : Icons.timeline,
+                      color: _showTimeline ? Colors.cyan : Colors.white.withAlpha(150),
+                      size: 18,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -332,65 +430,86 @@ class _ContactDetailPageState extends State<ContactDetailPage> {
               '暂无互动记录',
               style: TextStyle(color: Colors.white.withAlpha(100), fontSize: 14),
             )
+          else if (_showTimeline)
+            // 时间线视图
+            SizedBox(
+              height: 400,
+              child: InteractionTimeline(
+                interactions: _contact.interactions,
+                themeColor: _heatColor,
+              ),
+            )
           else
-            ...(_contact.interactions.reversed.take(10).map((i) => Container(
-              margin: const EdgeInsets.symmetric(vertical: 6),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white.withAlpha(5),
-                borderRadius: BorderRadius.circular(10),
+            // 列表视图
+            ...(_contact.interactions.reversed.take(10).map((i) => _buildInteractionItem(i))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInteractionItem(Interaction i) {
+    final isNegative = i.heatGain < 0;
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(5),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Column(
+            children: [
+              Text(
+                '${i.time.month}/${i.time.day}',
+                style: TextStyle(color: Colors.white.withAlpha(150), fontSize: 12),
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Column(
-                    children: [
-                      Text(
-                        '${i.time.month}/${i.time.day}',
-                        style: TextStyle(color: Colors.white.withAlpha(150), fontSize: 12),
+              Text(
+                '${i.time.hour}:${i.time.minute.toString().padLeft(2, '0')}',
+                style: TextStyle(color: Colors.white.withAlpha(100), fontSize: 10),
+              ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: (isNegative ? Colors.red : _heatColor).withAlpha(30),
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      Text(
-                        '${i.time.hour}:${i.time.minute.toString().padLeft(2, '0')}',
-                        style: TextStyle(color: Colors.white.withAlpha(100), fontSize: 10),
+                      child: Text(
+                        i.typeLabel,
+                        style: TextStyle(
+                          color: isNegative ? Colors.redAccent : _heatColor, 
+                          fontSize: 10,
+                        ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                              decoration: BoxDecoration(
-                                color: _heatColor.withAlpha(30),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                i.typeLabel,
-                                style: TextStyle(color: _heatColor, fontSize: 10),
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              '+${i.heatGain.toStringAsFixed(1)}%',
-                              style: const TextStyle(color: Colors.greenAccent, fontSize: 12),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          i.content,
-                          style: TextStyle(color: Colors.white.withAlpha(200), fontSize: 13),
-                        ),
-                      ],
                     ),
-                  ),
-                ],
-              ),
-            ))),
+                    const Spacer(),
+                    Text(
+                      '${isNegative ? "" : "+"}${i.heatGain.toStringAsFixed(1)}%',
+                      style: TextStyle(
+                        color: isNegative ? Colors.redAccent : Colors.greenAccent, 
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  i.content,
+                  style: TextStyle(color: Colors.white.withAlpha(200), fontSize: 13),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -574,6 +693,98 @@ class _ContactDetailPageState extends State<ContactDetailPage> {
             child: const Text('删除', style: TextStyle(color: Colors.white)),
           ),
         ],
+      ),
+    );
+  }
+
+  void _editRelationType() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A2E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text(
+                  '选择关系类型',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                if (_contact.relationType != null)
+                  TextButton(
+                    onPressed: () {
+                      _contact.relationType = null;
+                      StorageService.updateContact(_contact);
+                      widget.onUpdate();
+                      Navigator.pop(context);
+                      setState(() {});
+                    },
+                    child: const Text('清除', style: TextStyle(color: Colors.grey)),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: RelationType.values.map((type) {
+                final isSelected = _contact.relationType == type;
+                final typeColor = Color(type.color);
+                return Semantics(
+                  button: true,
+                  selected: isSelected,
+                  label: '${type.label}${isSelected ? "，已选中" : ""}',
+                  child: GestureDetector(
+                    onTap: () {
+                      _contact.relationType = type;
+                      StorageService.updateContact(_contact);
+                      widget.onUpdate();
+                      Navigator.pop(context);
+                      setState(() {});
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isSelected ? typeColor.withAlpha(40) : Colors.white.withAlpha(8),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected ? typeColor : Colors.white.withAlpha(30),
+                          width: isSelected ? 2 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(type.emoji, style: const TextStyle(fontSize: 16)),
+                          const SizedBox(width: 8),
+                          Text(
+                            type.label,
+                            style: TextStyle(
+                              color: isSelected ? typeColor : Colors.white.withAlpha(180),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }

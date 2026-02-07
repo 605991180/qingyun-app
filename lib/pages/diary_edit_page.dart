@@ -55,6 +55,7 @@ class _DiaryEditPageState extends State<DiaryEditPage> {
           if (_isEditing)
             IconButton(
               icon: const Icon(Icons.delete_outline, color: Colors.red),
+              tooltip: '删除日记',
               onPressed: _confirmDelete,
             ),
           TextButton(
@@ -94,9 +95,12 @@ class _DiaryEditPageState extends State<DiaryEditPage> {
   }
 
   Widget _buildDateSection() {
-    return GestureDetector(
-      onTap: _selectDate,
-      child: Container(
+    return Semantics(
+      button: true,
+      label: '日期：${_selectedDate.year}年${_selectedDate.month}月${_selectedDate.day}日，点击修改',
+      child: GestureDetector(
+        onTap: _selectDate,
+        child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white.withAlpha(10),
@@ -119,6 +123,7 @@ class _DiaryEditPageState extends State<DiaryEditPage> {
             Icon(Icons.edit, color: Colors.white.withAlpha(100), size: 18),
           ],
         ),
+      ),
       ),
     );
   }
@@ -158,31 +163,36 @@ class _DiaryEditPageState extends State<DiaryEditPage> {
             children: MoodType.all.map((mood) {
               final isSelected = _selectedMood == mood;
               final color = Color(MoodType.getColor(mood));
-              return GestureDetector(
-                onTap: () => setState(() => _selectedMood = mood),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isSelected ? color.withAlpha(40) : Colors.white.withAlpha(5),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isSelected ? color : Colors.white.withAlpha(30),
-                      width: isSelected ? 2 : 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(MoodType.getEmoji(mood), style: const TextStyle(fontSize: 16)),
-                      const SizedBox(width: 6),
-                      Text(
-                        mood,
-                        style: TextStyle(
-                          color: isSelected ? color : Colors.white.withAlpha(180),
-                          fontSize: 13,
-                        ),
+              return Semantics(
+                button: true,
+                selected: isSelected,
+                label: '心情：$mood${isSelected ? "，已选中" : ""}',
+                child: GestureDetector(
+                  onTap: () => setState(() => _selectedMood = mood),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? color.withAlpha(40) : Colors.white.withAlpha(5),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isSelected ? color : Colors.white.withAlpha(30),
+                        width: isSelected ? 2 : 1,
                       ),
-                    ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(MoodType.getEmoji(mood), style: const TextStyle(fontSize: 16)),
+                        const SizedBox(width: 6),
+                        Text(
+                          mood,
+                          style: TextStyle(
+                            color: isSelected ? color : Colors.white.withAlpha(180),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -194,41 +204,102 @@ class _DiaryEditPageState extends State<DiaryEditPage> {
   }
 
   Widget _buildContentSection() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withAlpha(10),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withAlpha(20)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
+    return StatefulBuilder(
+      builder: (context, setLocalState) {
+        final textLength = _contentController.text.length;
+        final isLongText = textLength > 2000;
+        final isVeryLongText = textLength > 5000;
+        
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withAlpha(10),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withAlpha(20)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.edit_note, color: Colors.green, size: 20),
-              SizedBox(width: 8),
-              Text(
-                '日记内容',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              Row(
+                children: [
+                  const Icon(Icons.edit_note, color: Colors.green, size: 20),
+                  const SizedBox(width: 8),
+                  const Text(
+                    '日记内容',
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const Spacer(),
+                  // 字符计数
+                  Text(
+                    '$textLength 字',
+                    style: TextStyle(
+                      color: isVeryLongText 
+                          ? Colors.orange 
+                          : isLongText 
+                              ? Colors.amber.withAlpha(180)
+                              : Colors.white.withAlpha(100),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+              // 超长文本提示
+              if (isLongText) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isVeryLongText 
+                        ? Colors.orange.withAlpha(30) 
+                        : Colors.amber.withAlpha(20),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isVeryLongText 
+                          ? Colors.orange.withAlpha(50) 
+                          : Colors.amber.withAlpha(30),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isVeryLongText ? Icons.warning_amber : Icons.info_outline,
+                        color: isVeryLongText ? Colors.orange : Colors.amber,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          isVeryLongText 
+                              ? '文本较长，AI分析可能需要更多时间'
+                              : '文本已超过2000字，建议适当精简',
+                          style: TextStyle(
+                            color: isVeryLongText ? Colors.orange : Colors.amber,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              TextField(
+                controller: _contentController,
+                style: const TextStyle(color: Colors.white, height: 1.6),
+                maxLines: 10,
+                minLines: 5,
+                onChanged: (_) => setLocalState(() {}),
+                decoration: InputDecoration(
+                  hintText: '今天发生了什么？\n遇见了谁？\n有什么感想？',
+                  hintStyle: TextStyle(color: Colors.white.withAlpha(80)),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _contentController,
-            style: const TextStyle(color: Colors.white, height: 1.6),
-            maxLines: 10,
-            minLines: 5,
-            decoration: InputDecoration(
-              hintText: '今天发生了什么？\n遇见了谁？\n有什么感想？',
-              hintStyle: TextStyle(color: Colors.white.withAlpha(80)),
-              border: InputBorder.none,
-              contentPadding: EdgeInsets.zero,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -270,33 +341,37 @@ class _DiaryEditPageState extends State<DiaryEditPage> {
               children: widget.contacts.map((c) {
                 final isSelected = _selectedContactIds.contains(c.id);
                 final color = Color(HeatCalculator.getHeatColorValue(c.heat));
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      if (isSelected) {
-                        _selectedContactIds.remove(c.id);
-                      } else {
-                        _selectedContactIds.add(c.id);
-                      }
-                    });
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isSelected ? color.withAlpha(40) : Colors.white.withAlpha(5),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: isSelected ? color : Colors.white.withAlpha(30),
+                return Semantics(
+                  button: true,
+                  selected: isSelected,
+                  label: '${c.name}，热度${c.heat.toInt()}%${isSelected ? "，已选中" : ""}',
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        if (isSelected) {
+                          _selectedContactIds.remove(c.id);
+                        } else {
+                          _selectedContactIds.add(c.id);
+                        }
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected ? color.withAlpha(40) : Colors.white.withAlpha(5),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isSelected ? color : Colors.white.withAlpha(30),
+                        ),
                       ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (isSelected)
-                          const Icon(Icons.check, size: 16, color: Colors.white),
-                        if (isSelected) const SizedBox(width: 4),
-                        Text(
-                          c.name,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isSelected)
+                            const Icon(Icons.check, size: 16, color: Colors.white),
+                          if (isSelected) const SizedBox(width: 4),
+                          Text(
+                            c.name,
                           style: TextStyle(
                             color: isSelected ? Colors.white : Colors.white.withAlpha(180),
                             fontSize: 13,
@@ -309,6 +384,7 @@ class _DiaryEditPageState extends State<DiaryEditPage> {
                         ),
                       ],
                     ),
+                  ),
                   ),
                 );
               }).toList(),
