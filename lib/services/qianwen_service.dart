@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/contact.dart';
 import '../models/contact_resource.dart';
 import '../models/ai_config.dart';
@@ -9,18 +10,22 @@ import 'ai_parser_service.dart';
 /// 通义千问云端API服务
 class QianwenService {
   static const String _apiKeyKey = 'qianwen_api_key';
+  static const String _privacyConsentKey = 'ai_privacy_consent';
   static const String _apiUrl = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation';
+  static const int _maxRetries = 3;
   
-  /// 保存API Key
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
+  
+  /// 保存API Key（加密存储）
   static Future<void> saveApiKey(String apiKey) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_apiKeyKey, apiKey);
+    await _secureStorage.write(key: _apiKeyKey, value: apiKey);
   }
   
   /// 获取API Key
   static Future<String?> getApiKey() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_apiKeyKey);
+    return await _secureStorage.read(key: _apiKeyKey);
   }
   
   /// 检查是否已配置API Key
@@ -31,8 +36,19 @@ class QianwenService {
   
   /// 删除API Key
   static Future<void> removeApiKey() async {
+    await _secureStorage.delete(key: _apiKeyKey);
+  }
+  
+  /// 检查用户是否已同意隐私条款
+  static Future<bool> hasPrivacyConsent() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_apiKeyKey);
+    return prefs.getBool(_privacyConsentKey) ?? false;
+  }
+  
+  /// 设置用户隐私同意状态
+  static Future<void> setPrivacyConsent(bool consent) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_privacyConsentKey, consent);
   }
 
   /// 获取当前使用的模型名称
@@ -51,57 +67,87 @@ class QianwenService {
       return AIParserService.analyzeDiary(content, contacts);
     }
     
-    try {
-      final contactNames = contacts.map((c) => c.name).toList();
-      final prompt = _buildAnalysisPrompt(content, contactNames);
-      final modelName = await _getModelName();
-      
-      final response = await http.post(
-        Uri.parse(_apiUrl),
-        headers: {
-          'Authorization': 'Bearer $apiKey',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'model': modelName,
-          'input': {
-            'messages': [
-              {
-                'role': 'system',
-                'content': '你是一个日记分析助手，帮助用户从日记中提取人际关系和互动信息。请严格按照JSON格式返回结果，不要添加任何额外说明。'
-              },
-              {
-                'role': 'user',
-                'content': prompt
-              }
-            ]
-          },
-          'parameters': {
-            'result_format': 'message',
-            'temperature': 0.3,
-          }
-        }),
-      ).timeout(const Duration(seconds: 30));
-      
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        // 正确的响应路径：output.choices[0].message.content 或 output.text
-        String text = '';
-        if (data['output'] != null) {
-          if (data['output']['choices'] != null && 
-              (data['output']['choices'] as List).isNotEmpty) {
-            text = data['output']['choices'][0]['message']?['content'] ?? '';
-          } else if (data['output']['text'] != null) {
-            text = data['output']['text'];
-          }
-        }
-        return _parseResponse(text, contacts);
-      } else {
-        return AIParserService.analyzeDiary(content, contacts);
-      }
-    } catch (e) {
+    // 检查隐私同意
+    final hasConsent = await hasPrivacyConsent();
+    if (!hasConsent) {
       return AIParserService.analyzeDiary(content, contacts);
     }
+    
+    // 带重试的API调用
+    for (int attempt = 1; attempt <= _maxRetries; attempt++) {
+      try {
+        final contactNames = contacts.map((c) => c.name).toList();
+        final prompt = _buildAnalysisPrompt(content, contactNames);
+        final modelName = await _getModelName();
+        
+        final client = http.Client();
+        try {
+          final response = await client.post(
+            Uri.parse(_apiUrl),
+            headers: {
+              'Authorization': 'Bearer $apiKey',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'model': modelName,
+              'input': {
+                'messages': [
+                  {
+                    'role': 'system',
+                    'content': '你是一个日记分析助手，帮助用户从日记中提取人际关系和互动信息。请严格按照JSON格式返回结果，不要添加任何额外说明。'
+                  },
+                  {
+                    'role': 'user',
+                    'content': prompt
+                  }
+                ]
+              },
+              'parameters': {
+                'result_format': 'message',
+                'temperature': 0.3,
+              }
+            }),
+          ).timeout(const Duration(seconds: 30));
+          
+          if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+            String text = '';
+            if (data['output'] != null) {
+              if (data['output']['choices'] != null && 
+                  (data['output']['choices'] as List).isNotEmpty) {
+                text = data['output']['choices'][0]['message']?['content'] ?? '';
+              } else if (data['output']['text'] != null) {
+                text = data['output']['text'];
+              }
+            }
+            return _parseResponse(text, contacts);
+          } else if (response.statusCode >= 500 && attempt < _maxRetries) {
+            // 服务器错误，等待后重试
+            await Future.delayed(Duration(seconds: attempt * 2));
+            continue;
+          } else {
+            // 其他错误或最后一次尝试失败，降级到本地
+            return AIParserService.analyzeDiary(content, contacts);
+          }
+        } finally {
+          client.close();
+        }
+      } on http.ClientException catch (_) {
+        if (attempt < _maxRetries) {
+          await Future.delayed(Duration(seconds: attempt * 2));
+          continue;
+        }
+        return AIParserService.analyzeDiary(content, contacts);
+      } catch (e) {
+        if (attempt < _maxRetries) {
+          await Future.delayed(Duration(seconds: attempt * 2));
+          continue;
+        }
+        return AIParserService.analyzeDiary(content, contacts);
+      }
+    }
+    
+    return AIParserService.analyzeDiary(content, contacts);
   }
   
   /// 构建分析提示词
@@ -255,9 +301,10 @@ $diaryContent
     final apiKey = await getApiKey();
     if (apiKey == null || apiKey.isEmpty) return false;
     
+    final client = http.Client();
     try {
       final modelName = await _getModelName();
-      final response = await http.post(
+      final response = await client.post(
         Uri.parse(_apiUrl),
         headers: {
           'Authorization': 'Bearer $apiKey',
@@ -276,6 +323,8 @@ $diaryContent
       return response.statusCode == 200;
     } catch (e) {
       return false;
+    } finally {
+      client.close();
     }
   }
 
@@ -286,9 +335,10 @@ $diaryContent
       return '未配置API Key';
     }
     
+    final client = http.Client();
     try {
       final modelName = await _getModelName();
-      final response = await http.post(
+      final response = await client.post(
         Uri.parse(_apiUrl),
         headers: {
           'Authorization': 'Bearer $apiKey',
@@ -313,6 +363,8 @@ $diaryContent
       }
     } catch (e) {
       return '网络错误: $e';
+    } finally {
+      client.close();
     }
   }
 }

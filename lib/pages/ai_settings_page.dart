@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/ai_config.dart';
+import '../services/qianwen_service.dart';
 
 class AISettingsPage extends StatefulWidget {
   const AISettingsPage({super.key});
@@ -12,6 +13,7 @@ class _AISettingsPageState extends State<AISettingsPage> {
   List<AIModelConfig> _configs = [];
   String? _activeId;
   bool _isLoading = true;
+  bool _privacyConsent = false;
 
   @override
   void initState() {
@@ -23,9 +25,11 @@ class _AISettingsPageState extends State<AISettingsPage> {
     setState(() => _isLoading = true);
     final configs = await AIConfigService.loadConfigs();
     final activeId = await AIConfigService.getActiveModelId();
+    final privacyConsent = await QianwenService.hasPrivacyConsent();
     setState(() {
       _configs = configs;
       _activeId = activeId;
+      _privacyConsent = privacyConsent;
       _isLoading = false;
     });
   }
@@ -49,6 +53,9 @@ class _AISettingsPageState extends State<AISettingsPage> {
           ? const Center(child: CircularProgressIndicator(color: Colors.purple))
           : Column(
               children: [
+                // 隐私设置
+                _buildPrivacyConsentCard(),
+                
                 // 当前活跃模型
                 if (_configs.isNotEmpty) _buildActiveModelCard(),
                 
@@ -64,6 +71,145 @@ class _AISettingsPageState extends State<AISettingsPage> {
         onPressed: _showAddModelDialog,
         backgroundColor: Colors.purple,
         child: const Icon(Icons.add, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildPrivacyConsentCard() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _privacyConsent 
+            ? Colors.green.withAlpha(20) 
+            : Colors.orange.withAlpha(20),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _privacyConsent 
+              ? Colors.green.withAlpha(50) 
+              : Colors.orange.withAlpha(50),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.privacy_tip,
+                color: _privacyConsent ? Colors.green : Colors.orange,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  '云端AI分析授权',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Switch(
+                value: _privacyConsent,
+                onChanged: (value) async {
+                  if (value) {
+                    _showPrivacyConsentDialog();
+                  } else {
+                    await QianwenService.setPrivacyConsent(false);
+                    setState(() => _privacyConsent = false);
+                  }
+                },
+                activeColor: Colors.green,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _privacyConsent 
+                ? '已授权：日记内容将发送到云端AI进行智能分析'
+                : '未授权：将使用本地规则分析（准确度较低）',
+            style: TextStyle(
+              color: Colors.white.withAlpha(150),
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPrivacyConsentDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A2E),
+        title: const Row(
+          children: [
+            Icon(Icons.privacy_tip, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('隐私授权', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '开启云端AI分析后：',
+              style: TextStyle(color: Colors.white.withAlpha(200), fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            _buildPrivacyItem('您的日记内容将发送到AI服务商（如通义千问）进行分析'),
+            _buildPrivacyItem('AI服务商会处理您的日记文本以提取人际关系信息'),
+            _buildPrivacyItem('分析结果仅保存在您的设备本地'),
+            const SizedBox(height: 12),
+            Text(
+              '如不同意，将使用本地规则引擎分析（准确度较低但隐私性更好）',
+              style: TextStyle(color: Colors.white.withAlpha(150), fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            onPressed: () async {
+              await QianwenService.setPrivacyConsent(true);
+              setState(() => _privacyConsent = true);
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('已授权云端AI分析'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            child: const Text('同意并开启', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPrivacyItem(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('• ', style: TextStyle(color: Colors.white.withAlpha(180))),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(color: Colors.white.withAlpha(180), fontSize: 13),
+            ),
+          ),
+        ],
       ),
     );
   }

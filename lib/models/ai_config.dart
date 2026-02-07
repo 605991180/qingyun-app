@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// AI模型提供商枚举
 enum AIProvider {
@@ -169,19 +170,39 @@ class AIProviderInfo {
 
 /// AI配置管理服务
 class AIConfigService {
-  static const String _configsKey = 'ai_model_configs_v1';
+  static const String _configsKey = 'ai_model_configs_v2';
   static const String _activeIdKey = 'ai_active_model_id';
+  static const String _apiKeyPrefix = 'ai_api_key_';
+  
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
+  
+  // 缓存SharedPreferences实例
+  static SharedPreferences? _prefs;
+  
+  static Future<SharedPreferences> _getPrefs() async {
+    _prefs ??= await SharedPreferences.getInstance();
+    return _prefs!;
+  }
 
   /// 加载所有配置
   static Future<List<AIModelConfig>> loadConfigs() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     final jsonString = prefs.getString(_configsKey);
     if (jsonString == null || jsonString.isEmpty) {
       return [];
     }
     try {
       final List<dynamic> jsonList = jsonDecode(jsonString);
-      return jsonList.map((json) => AIModelConfig.fromJson(json)).toList();
+      final configs = <AIModelConfig>[];
+      for (var json in jsonList) {
+        final configId = json['id'] as String;
+        final apiKey = await _secureStorage.read(key: '$_apiKeyPrefix$configId') ?? '';
+        json['apiKey'] = apiKey;
+        configs.add(AIModelConfig.fromJson(json));
+      }
+      return configs;
     } catch (e) {
       return [];
     }
@@ -189,8 +210,20 @@ class AIConfigService {
 
   /// 保存所有配置
   static Future<void> saveConfigs(List<AIModelConfig> configs) async {
-    final prefs = await SharedPreferences.getInstance();
-    final jsonString = jsonEncode(configs.map((c) => c.toJson()).toList());
+    final prefs = await _getPrefs();
+    final configsForStorage = <Map<String, dynamic>>[];
+    
+    for (var config in configs) {
+      await _secureStorage.write(
+        key: '$_apiKeyPrefix${config.id}',
+        value: config.apiKey,
+      );
+      final jsonMap = config.toJson();
+      jsonMap['apiKey'] = '';
+      configsForStorage.add(jsonMap);
+    }
+    
+    final jsonString = jsonEncode(configsForStorage);
     await prefs.setString(_configsKey, jsonString);
   }
 
@@ -213,6 +246,7 @@ class AIConfigService {
 
   /// 删除配置
   static Future<void> deleteConfig(String id) async {
+    await _secureStorage.delete(key: '$_apiKeyPrefix$id');
     final configs = await loadConfigs();
     configs.removeWhere((c) => c.id == id);
     await saveConfigs(configs);
@@ -220,10 +254,9 @@ class AIConfigService {
 
   /// 设置活跃模型
   static Future<void> setActiveModel(String id) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     await prefs.setString(_activeIdKey, id);
     
-    // 更新配置列表中的isActive状态
     final configs = await loadConfigs();
     final updatedConfigs = configs.map((c) => c.copyWith(isActive: c.id == id)).toList();
     await saveConfigs(updatedConfigs);
@@ -231,7 +264,7 @@ class AIConfigService {
 
   /// 获取活跃模型ID
   static Future<String?> getActiveModelId() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     return prefs.getString(_activeIdKey);
   }
 

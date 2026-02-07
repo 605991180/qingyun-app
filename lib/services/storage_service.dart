@@ -8,11 +8,19 @@ class StorageService {
   static const String _contactsKey = 'contacts_v2';
   static const String _diariesKey = 'diaries_v1';
   static const String _resourcesKey = 'contact_resources_v1';
+  
+  // 缓存SharedPreferences实例
+  static SharedPreferences? _prefs;
+  
+  static Future<SharedPreferences> _getPrefs() async {
+    _prefs ??= await SharedPreferences.getInstance();
+    return _prefs!;
+  }
 
   // ========== 联系人相关 ==========
   
   static Future<List<Contact>> loadContacts() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     final jsonString = prefs.getString(_contactsKey);
     if (jsonString == null || jsonString.isEmpty) {
       return [];
@@ -26,7 +34,7 @@ class StorageService {
   }
 
   static Future<void> saveContacts(List<Contact> contacts) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     final jsonString = jsonEncode(contacts.map((c) => c.toJson()).toList());
     await prefs.setString(_contactsKey, jsonString);
   }
@@ -73,7 +81,7 @@ class StorageService {
   // ========== 日记相关 ==========
 
   static Future<List<Diary>> loadDiaries() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     final jsonString = prefs.getString(_diariesKey);
     if (jsonString == null || jsonString.isEmpty) {
       return [];
@@ -87,7 +95,7 @@ class StorageService {
   }
 
   static Future<void> saveDiaries(List<Diary> diaries) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     final jsonString = jsonEncode(diaries.map((d) => d.toJson()).toList());
     await prefs.setString(_diariesKey, jsonString);
   }
@@ -135,7 +143,7 @@ class StorageService {
   // ========== 人脉资源相关 ==========
 
   static Future<List<ContactResource>> loadContactResources() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     final jsonString = prefs.getString(_resourcesKey);
     if (jsonString == null || jsonString.isEmpty) {
       return [];
@@ -149,7 +157,7 @@ class StorageService {
   }
 
   static Future<void> saveContactResources(List<ContactResource> resources) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     final jsonString = jsonEncode(resources.map((r) => r.toJson()).toList());
     await prefs.setString(_resourcesKey, jsonString);
   }
@@ -196,7 +204,7 @@ class StorageService {
   // ========== 通用 ==========
 
   static Future<void> clearAll() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _getPrefs();
     await prefs.remove(_contactsKey);
     await prefs.remove(_diariesKey);
     await prefs.remove(_resourcesKey);
